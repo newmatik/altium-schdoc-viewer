@@ -10,9 +10,9 @@ Use this as an operator runbook (not required for end users).
 
 ## Visual Studio Marketplace
 
-1. [Azure DevOps PAT](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token) with **Marketplace (Manage)**.  
-2. `npx @vscode/vsce login newmatik` (replace publisher id if different).  
-3. `npx @vscode/vsce publish`  
+**Live:** [newmatik.altium-schdoc-viewer](https://marketplace.visualstudio.com/items?itemName=newmatik.altium-schdoc-viewer) · [Publisher hub](https://marketplace.visualstudio.com/manage/publishers/newmatik/extensions/altium-schdoc-viewer/hub)
+
+Updates: bump `package.json` version, then `npx @vscode/vsce publish`. First-time: [PAT](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token) (Marketplace **Manage**), `npx @vscode/vsce login newmatik`.
 
 Docs: [Publishing extensions](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
 

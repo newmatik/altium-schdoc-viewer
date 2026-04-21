@@ -1,6 +1,9 @@
 # Altium SchDoc Viewer
 
 [![CI](https://github.com/newmatik/altium-schdoc-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/newmatik/altium-schdoc-viewer/actions/workflows/ci.yml)
+[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/newmatik.altium-schdoc-viewer?label=VS%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=newmatik.altium-schdoc-viewer)
+
+**Install:** [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=newmatik.altium-schdoc-viewer) · [Publisher hub (manage release)](https://marketplace.visualstudio.com/manage/publishers/newmatik/extensions/altium-schdoc-viewer/hub) · [Source on GitHub](https://github.com/newmatik/altium-schdoc-viewer)
 
 VS Code extension that opens **Altium Designer binary** `.SchDoc` / `.SchDot` files without Altium installed. It reads the OLE2 `FileHeader` stream and shows:
 
@@ -17,13 +20,16 @@ VS Code extension that opens **Altium Designer binary** `.SchDoc` / `.SchDot` fi
 
 ## Install
 
-### From the Visual Studio Marketplace (once published)
+### From the Visual Studio Marketplace (recommended)
 
-Search for **Altium SchDoc Viewer** or install from your publisher page after `vsce publish` (see [Publishing](#publishing)).
+1. Open the listing: **[newmatik.altium-schdoc-viewer](https://marketplace.visualstudio.com/items?itemName=newmatik.altium-schdoc-viewer)**  
+2. Click **Install**, or in VS Code / Cursor: **Extensions** (Ctrl+Shift+X / Cmd+Shift+X) → search **Altium SchDoc Viewer** → **Install**.
 
-### From Open VSX (once published)
+Deep link (opens Extensions view where supported): `vscode:extension/newmatik.altium-schdoc-viewer`
 
-Many VS Code forks use [Open VSX](https://open-vsx.org/). After publishing with `ovsx`, users can install from the registry UI or CLI.
+### From Open VSX (optional)
+
+Not published there yet. Many forks (e.g. VSCodium) use [Open VSX](https://open-vsx.org/); see [Publishing](#publishing) to add it.
 
 ### From a `.vsix` file (always works)
 
@@ -68,13 +74,16 @@ Extensions are **not** installed from GitHub automatically; you publish to a **r
 
 ### 1. Microsoft Visual Studio Marketplace (VS Code, Cursor)
 
-1. Create a [publisher](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#create-a-publisher) (e.g. `newmatik`) and a [Personal Access Token](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token) with **Marketplace (Manage)** scope.  
-2. Log in once: `npx @vscode/vsce login <publisher>`  
-3. From this repo root (with `npm ci` and tests green):  
-   `npx @vscode/vsce publish`  
-   Or set version in `package.json` and use `npx @vscode/vsce publish <new-version>`.
+**Current listing:** [newmatik.altium-schdoc-viewer](https://marketplace.visualstudio.com/items?itemName=newmatik.altium-schdoc-viewer) · [Publisher hub](https://marketplace.visualstudio.com/manage/publishers/newmatik/extensions/altium-schdoc-viewer/hub)
 
-After publish, the extension appears in the Marketplace; VS Code users can search and install.
+For future updates: bump `version` in `package.json`, then from repo root (`npm ci` and tests green):
+
+```bash
+npx @vscode/vsce login newmatik   # once per machine / token expiry
+npx @vscode/vsce publish
+```
+
+First-time setup: [publisher](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#create-a-publisher) and [PAT with Marketplace (Manage)](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token).
 
 ### 2. Open VSX (VSCodium, Eclipse Theia, some corporate mirrors)
 
