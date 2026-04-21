@@ -1,0 +1,106 @@
+{
+  "name": "altium-schdoc-viewer",
+  "displayName": "Altium SchDoc Viewer",
+  "description": "Read Altium binary .SchDoc schematics as tables, netlist, and SVG preview (no Altium required).",
+  "version": "0.1.0",
+  "publisher": "newmatik",
+  "license": "MIT",
+  "homepage": "https://github.com/newmatik/altium-schdoc-viewer#readme",
+  "bugs": {
+    "url": "https://github.com/newmatik/altium-schdoc-viewer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/newmatik/altium-schdoc-viewer.git"
+  },
+  "keywords": [
+    "altium",
+    "schdoc",
+    "schematic",
+    "hardware",
+    "eda",
+    "netlist",
+    "pcb"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:altium.schdoc",
+    "onCommand:altium.exportBom",
+    "onCommand:altium.exportNetlist",
+    "onCommand:altium.revealRaw"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "altium.schdoc",
+        "displayName": "Altium Schematic (Tables + Preview)",
+        "selector": [
+          {
+            "filenamePattern": "*.SchDoc"
+          },
+          {
+            "filenamePattern": "*.SchDot"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "altium.exportBom",
+        "title": "Altium: Export BOM as CSV"
+      },
+      {
+        "command": "altium.exportNetlist",
+        "title": "Altium: Export Netlist (Protel)"
+      },
+      {
+        "command": "altium.revealRaw",
+        "title": "Altium: Reveal Raw Records (open SchDoc)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "altium.exportBom",
+          "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
+        },
+        {
+          "command": "altium.exportNetlist",
+          "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
+        },
+        {
+          "command": "altium.revealRaw",
+          "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "compile": "npm run build",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "cfb": "^1.2.2"
+  }
+}
