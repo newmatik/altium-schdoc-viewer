@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- README: focus on Marketplace install; move VSIX instructions to a short “local development” section at the end.
+- Honest wording: draft SVG preview is WIP and not schematic-accurate.
+- Remove separate publishing maintainer doc from the repo.
+
 ## 0.1.0
 
 Initial public release.

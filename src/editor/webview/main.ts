@@ -126,7 +126,7 @@ function render(): void {
       pins: 'Pins',
       nets: 'Nets',
       parameters: 'Parameters',
-      preview: 'Preview',
+      preview: 'Draft (WIP)',
       raw: 'Raw',
     };
     tabs.appendChild(tabButton(labels[id], id, id === activeTab));

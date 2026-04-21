@@ -1,8 +1,8 @@
 {
   "name": "altium-schdoc-viewer",
   "displayName": "Altium SchDoc Viewer",
-  "description": "Read Altium binary .SchDoc schematics as tables, netlist, and SVG preview (no Altium required).",
-  "version": "0.1.0",
+  "description": "Open Altium .SchDoc/.SchDot without Altium: tables, heuristic netlist export, and a rough draft preview (WIP—not schematic-accurate).",
+  "version": "0.1.1",
   "publisher": "newmatik",
   "license": "MIT",
   "homepage": "https://github.com/newmatik/altium-schdoc-viewer#readme",
@@ -39,7 +39,7 @@
     "customEditors": [
       {
         "viewType": "altium.schdoc",
-        "displayName": "Altium Schematic (Tables + Preview)",
+        "displayName": "Altium Schematic (tables & netlist)",
         "selector": [
           {
             "filenamePattern": "*.SchDoc"
