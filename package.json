@@ -2,7 +2,7 @@
   "name": "altium-schdoc-viewer",
   "displayName": "Altium SchDoc Viewer",
   "description": "Open Altium .SchDoc/.SchDot without Altium: tables, heuristic netlist export, and a rough draft preview (WIP—not schematic-accurate).",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "newmatik",
   "license": "MIT",
   "homepage": "https://github.com/newmatik/altium-schdoc-viewer#readme",

@@ -28,6 +28,8 @@ export interface SchPin {
   /** Electrical connection point (where wires attach). */
   location: SchPoint;
   pinLength: number;
+  /** Pin direction from hotspot toward the symbol body: 0=left, 1=down, 2=right, 3=up. */
+  orientation: number;
   electrical: number;
   ownerPartId: number;
 }
@@ -38,6 +40,19 @@ export interface SchWire {
 }
 
 export interface SchLine {
+  recordIndex: number;
+  a: SchPoint;
+  b: SchPoint;
+  ownerPartId: number;
+}
+
+export interface SchPolyline {
+  recordIndex: number;
+  points: SchPoint[];
+  ownerPartId: number;
+}
+
+export interface SchRectangle {
   recordIndex: number;
   a: SchPoint;
   b: SchPoint;
@@ -62,6 +77,14 @@ export interface SchPowerPort {
   style: number;
 }
 
+export interface SchText {
+  recordIndex: number;
+  text: string;
+  location: SchPoint;
+  orientation: number;
+  kind: 'label' | 'designator' | 'parameter';
+}
+
 export interface SchSheetInfo {
   customSize: SchPoint | null;
   snapGridSize: SchPoint | null;
@@ -75,9 +98,12 @@ export interface ParsedSchDoc {
   pins: SchPin[];
   wires: SchWire[];
   lines: SchLine[];
+  polylines: SchPolyline[];
+  rectangles: SchRectangle[];
   junctions: SchJunction[];
   netLabels: SchNetLabel[];
   powerPorts: SchPowerPort[];
+  texts: SchText[];
 }
 
 function truthyFlag(v: string | undefined): boolean {
@@ -99,6 +125,14 @@ function parseWireVertices(fields: Map<string, string>): SchPoint[] {
     out.push({ x: schCoord(xi, xf), y: schCoord(yi, yf) });
   }
   return out;
+}
+
+function visibleText(fields: Map<string, string>): string {
+  return getStr(fields, '%UTF8%Text') || getStr(fields, 'Text');
+}
+
+function parsePinOrientation(fields: Map<string, string>): number {
+  return parseIntField(fields, 'PinConglomerate', 0) & 0x3;
 }
 
 export function buildSchematic(records: ParsedRecord[]): ParsedSchDoc {
@@ -214,6 +248,7 @@ export function buildSchematic(records: ParsedRecord[]): ParsedSchDoc {
       name: getStr(f, 'Name'),
       location: readLocation(f),
       pinLength: parseIntField(f, 'PinLength', 0),
+      orientation: parsePinOrientation(f),
       electrical: parseIntField(f, 'Electrical', 0),
       ownerPartId: parseIntField(f, 'OwnerPartId', -1),
     });
@@ -235,6 +270,29 @@ export function buildSchematic(records: ParsedRecord[]): ParsedSchDoc {
       a: readLocation(f),
       b: readCorner(f),
       ownerPartId: parseIntField(f, 'OwnerPartId', -1),
+    });
+  }
+
+  const polylines: SchPolyline[] = [];
+  for (const rec of records) {
+    if (rec.recordType !== RecordType.Polyline) continue;
+    const points = parseWireVertices(rec.fields);
+    if (points.length < 2) continue;
+    polylines.push({
+      recordIndex: rec.index,
+      points,
+      ownerPartId: parseIntField(rec.fields, 'OwnerPartId', -1),
+    });
+  }
+
+  const rectangles: SchRectangle[] = [];
+  for (const rec of records) {
+    if (rec.recordType !== RecordType.Rectangle) continue;
+    rectangles.push({
+      recordIndex: rec.index,
+      a: readLocation(rec.fields),
+      b: readCorner(rec.fields),
+      ownerPartId: parseIntField(rec.fields, 'OwnerPartId', -1),
     });
   }
 
@@ -267,6 +325,47 @@ export function buildSchematic(records: ParsedRecord[]): ParsedSchDoc {
     });
   }
 
+  const texts: SchText[] = [];
+  for (const rec of records) {
+    if (rec.recordType === RecordType.Label) {
+      const text = visibleText(rec.fields);
+      if (!text) continue;
+      texts.push({
+        recordIndex: rec.index,
+        text,
+        location: readLocation(rec.fields),
+        orientation: parseIntField(rec.fields, 'Orientation', 0),
+        kind: 'label',
+      });
+      continue;
+    }
+
+    if (rec.recordType === RecordType.Designator) {
+      const text = visibleText(rec.fields);
+      if (!text) continue;
+      texts.push({
+        recordIndex: rec.index,
+        text,
+        location: readLocation(rec.fields),
+        orientation: parseIntField(rec.fields, 'Orientation', 0),
+        kind: 'designator',
+      });
+      continue;
+    }
+
+    if (rec.recordType === RecordType.Parameter && !truthyFlag(rec.fields.get('IsHidden'))) {
+      const text = visibleText(rec.fields);
+      if (!text) continue;
+      texts.push({
+        recordIndex: rec.index,
+        text,
+        location: readLocation(rec.fields),
+        orientation: parseIntField(rec.fields, 'Orientation', 0),
+        kind: 'parameter',
+      });
+    }
+  }
+
   return {
     records,
     sheet,
@@ -274,9 +373,12 @@ export function buildSchematic(records: ParsedRecord[]): ParsedSchDoc {
     pins,
     wires,
     lines,
+    polylines,
+    rectangles,
     junctions,
     netLabels,
     powerPorts,
+    texts,
   };
 }
 

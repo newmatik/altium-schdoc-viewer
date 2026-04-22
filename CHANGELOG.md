@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Preview: render more schematic primitives from the SchDoc record stream, including lines, polylines, rectangles, and visible text.
+- Preview: draw pin stubs using parsed pin orientation so symbol connections look closer to the original schematic.
+- Preview: switch pan/zoom interaction to a `viewBox` camera for better touchpad panning and cursor-anchored zooming.
+
 ## 0.1.1
 
 - README: focus on Marketplace install; move VSIX instructions to a short “local development” section at the end.

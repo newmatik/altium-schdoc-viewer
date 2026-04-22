@@ -224,60 +224,112 @@ function render(): void {
       const controls = el('div', 'preview-controls');
       const zoomOut = el('button', 'btn', '-') as HTMLButtonElement;
       const zoomIn = el('button', 'btn', '+') as HTMLButtonElement;
-      const reset = el('button', 'btn', 'Reset view') as HTMLButtonElement;
+      const reset = el('button', 'btn', 'Fit') as HTMLButtonElement;
+      const hint = el('div', 'preview-hint', 'Wheel pans, pinch or Ctrl+wheel zooms, drag pans.');
       controls.appendChild(zoomOut);
       controls.appendChild(zoomIn);
       controls.appendChild(reset);
+      controls.appendChild(hint);
       wrap.appendChild(controls);
       const host = el('div', 'svg-host') as HTMLDivElement;
       host.innerHTML = payload!.previewSvg;
       const svg = host.querySelector('svg') as SVGSVGElement | null;
-      let scale = 1;
-      let tx = 0;
-      let ty = 0;
-      let drag: { x: number; y: number; tx: number; ty: number } | null = null;
-      function apply() {
-        if (!svg) return;
-        svg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-        svg.style.transformOrigin = '0 0';
-      }
-      apply();
-      host.addEventListener(
-        'wheel',
-        (ev: WheelEvent) => {
-          ev.preventDefault();
-          const z = ev.deltaY < 0 ? 1.1 : 1 / 1.1;
-          scale = Math.min(8, Math.max(0.2, scale * z));
+      if (svg) {
+        const base = svg.viewBox.baseVal;
+        const initialViewBox = { x: base.x, y: base.y, width: base.width, height: base.height };
+        let zoom = 1;
+        let viewBox = { ...initialViewBox };
+        let drag: { pointerId: number; x: number; y: number } | null = null;
+
+        function apply() {
+          svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+        }
+
+        function clampZoom(nextZoom: number): number {
+          return Math.min(48, Math.max(1, nextZoom));
+        }
+
+        function zoomAt(clientX: number, clientY: number, factor: number): void {
+          const rect = host.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const nextZoom = clampZoom(zoom * factor);
+          if (nextZoom === zoom) return;
+          const px = (clientX - rect.left) / rect.width;
+          const py = (clientY - rect.top) / rect.height;
+          const worldX = viewBox.x + px * viewBox.width;
+          const worldY = viewBox.y + py * viewBox.height;
+          zoom = nextZoom;
+          viewBox = {
+            x: worldX - px * (initialViewBox.width / zoom),
+            y: worldY - py * (initialViewBox.height / zoom),
+            width: initialViewBox.width / zoom,
+            height: initialViewBox.height / zoom,
+          };
           apply();
-        },
-        { passive: false }
-      );
-      host.addEventListener('mousedown', (ev: MouseEvent) => {
-        drag = { x: ev.clientX, y: ev.clientY, tx, ty };
-      });
-      window.addEventListener('mousemove', (ev: MouseEvent) => {
-        if (!drag) return;
-        tx = drag.tx + (ev.clientX - drag.x);
-        ty = drag.ty + (ev.clientY - drag.y);
+        }
+
+        function panByPixels(dx: number, dy: number): void {
+          const rect = host.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          viewBox = {
+            ...viewBox,
+            x: viewBox.x + (dx * viewBox.width) / rect.width,
+            y: viewBox.y + (dy * viewBox.height) / rect.height,
+          };
+          apply();
+        }
+
         apply();
-      });
-      window.addEventListener('mouseup', () => {
-        drag = null;
-      });
-      zoomIn.onclick = () => {
-        scale = Math.min(8, scale * 1.2);
-        apply();
-      };
-      zoomOut.onclick = () => {
-        scale = Math.max(0.2, scale / 1.2);
-        apply();
-      };
-      reset.onclick = () => {
-        scale = 1;
-        tx = 0;
-        ty = 0;
-        apply();
-      };
+
+        host.addEventListener(
+          'wheel',
+          (ev: WheelEvent) => {
+            ev.preventDefault();
+            if (ev.ctrlKey || ev.metaKey) {
+              const factor = Math.exp(-ev.deltaY * 0.0025);
+              zoomAt(ev.clientX, ev.clientY, factor);
+              return;
+            }
+            panByPixels(ev.deltaX, ev.deltaY);
+          },
+          { passive: false }
+        );
+
+        host.addEventListener('pointerdown', (ev: PointerEvent) => {
+          drag = { pointerId: ev.pointerId, x: ev.clientX, y: ev.clientY };
+          host.setPointerCapture(ev.pointerId);
+        });
+
+        host.addEventListener('pointermove', (ev: PointerEvent) => {
+          if (!drag || drag.pointerId !== ev.pointerId) return;
+          panByPixels(drag.x - ev.clientX, drag.y - ev.clientY);
+          drag = { ...drag, x: ev.clientX, y: ev.clientY };
+        });
+
+        const stopDrag = (ev: PointerEvent) => {
+          if (!drag || drag.pointerId !== ev.pointerId) return;
+          drag = null;
+          if (host.hasPointerCapture(ev.pointerId)) host.releasePointerCapture(ev.pointerId);
+        };
+
+        host.addEventListener('pointerup', stopDrag);
+        host.addEventListener('pointercancel', stopDrag);
+        host.addEventListener('dblclick', (ev: MouseEvent) => zoomAt(ev.clientX, ev.clientY, 1.6));
+
+        zoomIn.onclick = () => {
+          const rect = host.getBoundingClientRect();
+          zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.25);
+        };
+        zoomOut.onclick = () => {
+          const rect = host.getBoundingClientRect();
+          zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / 1.25);
+        };
+        reset.onclick = () => {
+          zoom = 1;
+          viewBox = { ...initialViewBox };
+          apply();
+        };
+      }
       wrap.appendChild(host);
       panel.appendChild(wrap);
     } else {
@@ -341,9 +393,10 @@ style.textContent = `
   th { position:sticky; top:0; background:#2a2d2e; color:#aaa; z-index:1; }
   tr:hover td { background:#2a2d2e; }
   .preview-wrap { display:flex; flex-direction:column; gap:8px; height: calc(100vh - 200px); }
-  .preview-controls { display:flex; gap:8px; }
-  .svg-host { flex:1; overflow:hidden; border:1px solid #333; border-radius:4px; background:#1a1a1a; cursor:grab; }
+  .preview-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .preview-hint { margin-left:auto; font-size:12px; color:#888; }
+  .svg-host { flex:1; overflow:hidden; border:1px solid #333; border-radius:4px; background:#1a1a1a; cursor:grab; touch-action:none; }
   .svg-host:active { cursor:grabbing; }
-  .svg-host svg { display:block; min-width:100%; min-height:100%; }
+  .svg-host svg { display:block; width:100%; height:100%; user-select:none; }
 `;
 document.head.appendChild(style);

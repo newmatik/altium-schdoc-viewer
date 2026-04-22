@@ -21,6 +21,11 @@ describe('parser', () => {
     expect(doc.components.length).toBe(67);
     expect(doc.pins.length).toBe(359);
     expect(doc.wires.length).toBeGreaterThan(100);
+    expect(doc.lines.length).toBeGreaterThan(300);
+    expect(doc.polylines.length).toBeGreaterThan(50);
+    expect(doc.rectangles.length).toBeGreaterThan(40);
+    expect(doc.texts.length).toBeGreaterThan(50);
+    expect(new Set(doc.pins.map((p) => p.orientation))).toEqual(new Set([0, 1, 2, 3]));
     const u1 = doc.components.find((c) => c.designator === 'U1');
     expect(u1).toBeDefined();
     expect(u1!.libReference).toContain('TMA');

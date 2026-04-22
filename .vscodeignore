@@ -4,6 +4,7 @@
 src/**
 test/**
 .gitignore
+CLAUDE.md
 .yarnrc
 esbuild.config.mjs
 vitest.config.ts

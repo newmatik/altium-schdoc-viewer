@@ -4,35 +4,14 @@ import type { SvgPreviewInput } from './webview/svgPreview';
 
 export function buildSvgPreviewInput(doc: ParsedSchDoc): SvgPreviewInput {
   const wires = wireSegmentsForPreview(doc);
-  const components = doc.components.map((c) => {
-    const pins = doc.pins.filter((p) => p.componentRecordIndex === c.recordIndex);
-    let minX = c.location.x;
-    let minY = c.location.y;
-    let maxX = c.location.x + 80;
-    let maxY = c.location.y + 50;
-    for (const p of pins) {
-      minX = Math.min(minX, p.location.x);
-      minY = Math.min(minY, p.location.y);
-      maxX = Math.max(maxX, p.location.x);
-      maxY = Math.max(maxY, p.location.y);
-    }
-    const pad = 20;
-    const w = Math.max(50, maxX - minX + pad * 2);
-    const hWorld = Math.max(40, maxY - minY + pad * 2);
-    return {
-      designator: c.designator || '?',
-      value: (c.value || c.libReference || '').slice(0, 48),
-      x: minX - pad,
-      y: minY - pad,
-      w,
-      h: hWorld,
-    };
-  });
+  const components: SvgPreviewInput['components'] = [];
   const pins = doc.pins.map((p) => {
     const comp = doc.components.find((x) => x.recordIndex === p.componentRecordIndex);
     return {
       x: p.location.x,
       y: p.location.y,
+      orientation: p.orientation,
+      pinLength: p.pinLength,
       designator: comp?.designator ?? '?',
       pin: p.pinDesignator,
     };
@@ -40,6 +19,16 @@ export function buildSvgPreviewInput(doc: ParsedSchDoc): SvgPreviewInput {
   return {
     sheetSize: doc.sheet.customSize,
     wires,
+    lines: doc.lines.map((line) => ({ a: line.a, b: line.b })),
+    polylines: doc.polylines.map((polyline) => polyline.points),
+    rectangles: doc.rectangles.map((rect) => ({ a: rect.a, b: rect.b })),
+    texts: doc.texts.map((text) => ({
+      x: text.location.x,
+      y: text.location.y,
+      text: text.text,
+      orientation: text.orientation,
+      kind: text.kind,
+    })),
     components,
     pins,
     junctions: doc.junctions.map((j) => j.location),
