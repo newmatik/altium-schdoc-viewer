@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { bomToCsv } from './export/bomCsv';
+import { buildJsonModel } from './export/jsonModel';
 import { netlistToProtel } from './export/netlistExport';
 import { buildNetlist } from './netlist/builder';
 import { parseSchDocBuffer } from './parser/schematic';
 import { SchDocEditorProvider } from './editor/SchDocEditorProvider';
+import { runMcpHealthCheckCommand, runMcpSetupCommand, runMcpShowSnippetCommand } from './mcpSetup';
 
 async function resolveSchDocUri(uri?: vscode.Uri): Promise<vscode.Uri | undefined> {
   if (uri) return uri;
@@ -64,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const buf = await vscode.workspace.fs.readFile(u);
       const model = parseSchDocBuffer(new Uint8Array(buf));
       const nets = buildNetlist(model);
-      const text = netlistToProtel(nets);
+      const text = netlistToProtel(nets, model.components);
       const base = u.fsPath.replace(/\.(SchDoc|SchDot)$/i, '') + '.net';
       const out = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file(base),
@@ -75,6 +77,41 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.workspace.fs.writeFile(out, Buffer.from(text, 'utf8'));
       vscode.window.showInformationMessage(`Netlist written to ${out.fsPath}`);
     })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('altium.exportJsonModel', async (uri?: vscode.Uri) => {
+      const u = await resolveSchDocUri(uri);
+      if (!u) {
+        vscode.window.showWarningMessage('No SchDoc selected.');
+        return;
+      }
+      const buf = await vscode.workspace.fs.readFile(u);
+      const model = parseSchDocBuffer(new Uint8Array(buf));
+      const nets = buildNetlist(model);
+      const json = JSON.stringify(buildJsonModel(model, nets), null, 2);
+      const base = u.fsPath.replace(/\.(SchDoc|SchDot)$/i, '') + '.json';
+      const out = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(base),
+        filters: { JSON: ['json'] },
+        saveLabel: 'Export JSON model',
+      });
+      if (!out) return;
+      await vscode.workspace.fs.writeFile(out, Buffer.from(json, 'utf8'));
+      vscode.window.showInformationMessage(`JSON model written to ${out.fsPath}`);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('altium.mcp.setup', () => runMcpSetupCommand(context))
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('altium.mcp.showSnippet', () => runMcpShowSnippetCommand(context))
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('altium.mcp.test', () => runMcpHealthCheckCommand(context))
   );
 
   context.subscriptions.push(

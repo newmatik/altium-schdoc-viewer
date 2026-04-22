@@ -45,28 +45,86 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
+type SortDir = 'asc' | 'desc';
+type SortState = { col: number; dir: SortDir } | null;
+
+// Remembered per tab so switching tabs doesn't lose the user's sort.
+const sortByTab: Record<string, SortState> = {};
+
+/**
+ * Click header → asc; click same header → desc; click a third time → unsorted (original order).
+ * `localeCompare(..., { numeric: true })` orders `R1, R2, R10` correctly as well as plain text.
+ */
+function cycleSort(tabId: string, col: number): void {
+  const cur = sortByTab[tabId] ?? null;
+  if (!cur || cur.col !== col) {
+    sortByTab[tabId] = { col, dir: 'asc' };
+  } else if (cur.dir === 'asc') {
+    sortByTab[tabId] = { col, dir: 'desc' };
+  } else {
+    sortByTab[tabId] = null;
+  }
+}
+
+function sortRows(rows: string[][], state: SortState): string[][] {
+  if (!state) return rows;
+  const { col, dir } = state;
+  const sign = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) =>
+    sign *
+    (a[col] ?? '').localeCompare(b[col] ?? '', undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+  );
+}
+
 function renderTable(
   headers: string[],
   rows: string[][],
-  filter: string
+  filter: string,
+  tabId: string,
+  onSortChange: () => void
 ): HTMLElement {
   const wrap = el('div', 'table-wrap');
   const f = filter.trim().toLowerCase();
   const filtered = f
     ? rows.filter((r) => r.some((c) => c.toLowerCase().includes(f)))
     : rows;
+  const state = sortByTab[tabId] ?? null;
+  const sorted = sortRows(filtered, state);
   const table = el('table');
   const thead = el('thead');
   const trh = el('tr');
-  for (const h of headers) {
-    const th = el('th');
-    th.textContent = h;
+  headers.forEach((h, colIdx) => {
+    const th = el('th', 'sortable') as HTMLTableCellElement;
+    th.tabIndex = 0;
+    th.setAttribute('role', 'columnheader');
+    let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
+    let indicator = '';
+    if (state && state.col === colIdx) {
+      ariaSort = state.dir === 'asc' ? 'ascending' : 'descending';
+      indicator = state.dir === 'asc' ? ' ▲' : ' ▼';
+    }
+    th.setAttribute('aria-sort', ariaSort);
+    th.textContent = h + indicator;
+    const activate = () => {
+      cycleSort(tabId, colIdx);
+      onSortChange();
+    };
+    th.addEventListener('click', activate);
+    th.addEventListener('keydown', (ev: KeyboardEvent) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        activate();
+      }
+    });
     trh.appendChild(th);
-  }
+  });
   thead.appendChild(trh);
   table.appendChild(thead);
   const tbody = el('tbody');
-  for (const row of filtered) {
+  for (const row of sorted) {
     const tr = el('tr');
     for (const c of row) {
       const td = el('td');
@@ -126,7 +184,7 @@ function render(): void {
       pins: 'Pins',
       nets: 'Nets',
       parameters: 'Parameters',
-      preview: 'Draft (WIP)',
+      preview: 'Preview',
       raw: 'Raw',
     };
     tabs.appendChild(tabButton(labels[id], id, id === activeTab));
@@ -139,19 +197,21 @@ function render(): void {
   function renderPanel(): void {
     panel.innerHTML = '';
     const f = filterInput.value;
+    // Default sort on first visit of each tab: designator / net-name ascending.
+    if (sortByTab[activeTab] === undefined) {
+      sortByTab[activeTab] = { col: 0, dir: 'asc' };
+    }
     if (activeTab === 'components') {
       const headers = ['Designator', 'LibReference', 'Value', 'Footprint', 'IndexInSheet', 'Description'];
-      const rows = payload!.components
-        .map((c) => [
-          c.designator,
-          c.libReference,
-          c.value,
-          c.footprint,
-          String(c.indexInSheet),
-          c.description,
-        ])
-        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }));
-      panel.appendChild(renderTable(headers, rows, f));
+      const rows = payload!.components.map((c) => [
+        c.designator,
+        c.libReference,
+        c.value,
+        c.footprint,
+        String(c.indexInSheet),
+        c.description,
+      ]);
+      panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
         const blob = new Blob([csvFromTable(headers, rows)], { type: 'text/csv' });
         const a = document.createElement('a');
@@ -162,19 +222,14 @@ function render(): void {
       };
     } else if (activeTab === 'pins') {
       const headers = ['Designator', 'Pin', 'Name', 'Electrical', 'CompIdx'];
-      const rows = payload!.pins
-        .map((p) => [
-          p.designator,
-          p.pinDesignator,
-          p.name,
-          String(p.electrical),
-          String(p.componentRecordIndex),
-        ])
-        .sort((a, b) => {
-          const d = a[0].localeCompare(b[0], undefined, { numeric: true });
-          return d !== 0 ? d : a[1].localeCompare(b[1], undefined, { numeric: true });
-        });
-      panel.appendChild(renderTable(headers, rows, f));
+      const rows = payload!.pins.map((p) => [
+        p.designator,
+        p.pinDesignator,
+        p.name,
+        String(p.electrical),
+        String(p.componentRecordIndex),
+      ]);
+      panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
         const blob = new Blob([csvFromTable(headers, rows)], { type: 'text/csv' });
         const a = document.createElement('a');
@@ -185,10 +240,11 @@ function render(): void {
       };
     } else if (activeTab === 'nets') {
       const headers = ['Net', 'Pins'];
-      const rows = payload!.nets
-        .map((n) => [n.name, n.pins.map((p) => `${p.designator}-${p.pin}`).join(', ')])
-        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }));
-      panel.appendChild(renderTable(headers, rows, f));
+      const rows = payload!.nets.map((n) => [
+        n.name,
+        n.pins.map((p) => `${p.designator}-${p.pin}`).join(', '),
+      ]);
+      panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
         const lines = ['Net,Pin,PinName'];
         for (const n of payload!.nets) {
@@ -203,13 +259,13 @@ function render(): void {
       };
     } else if (activeTab === 'parameters') {
       const headers = ['Component', 'Name', 'Value', 'Hidden'];
-      const rows = payload!.parameters
-        .map((p) => [p.component, p.name, p.value, p.hidden ? 'Y' : ''])
-        .sort((a, b) => {
-          const d = a[0].localeCompare(b[0], undefined, { numeric: true });
-          return d !== 0 ? d : a[1].localeCompare(b[1]);
-        });
-      panel.appendChild(renderTable(headers, rows, f));
+      const rows = payload!.parameters.map((p) => [
+        p.component,
+        p.name,
+        p.value,
+        p.hidden ? 'Y' : '',
+      ]);
+      panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
         const blob = new Blob([csvFromTable(headers, rows)], { type: 'text/csv' });
         const a = document.createElement('a');
@@ -222,10 +278,14 @@ function render(): void {
       exportCsv.style.display = 'none';
       const wrap = el('div', 'preview-wrap');
       const controls = el('div', 'preview-controls');
-      const zoomOut = el('button', 'btn', '-') as HTMLButtonElement;
+      const zoomOut = el('button', 'btn', '−') as HTMLButtonElement;
       const zoomIn = el('button', 'btn', '+') as HTMLButtonElement;
       const reset = el('button', 'btn', 'Fit') as HTMLButtonElement;
-      const hint = el('div', 'preview-hint', 'Wheel pans, pinch or Ctrl+wheel zooms, drag pans.');
+      const hint = el(
+        'div',
+        'preview-hint',
+        'Scroll to pan · Ctrl/Cmd+scroll to zoom · drag to pan · double-click zooms in'
+      );
       controls.appendChild(zoomOut);
       controls.appendChild(zoomIn);
       controls.appendChild(reset);
@@ -233,16 +293,31 @@ function render(): void {
       wrap.appendChild(controls);
       const host = el('div', 'svg-host') as HTMLDivElement;
       host.innerHTML = payload!.previewSvg;
-      const svg = host.querySelector('svg') as SVGSVGElement | null;
-      if (svg) {
+      const svgNode = host.querySelector('svg') as SVGSVGElement | null;
+      if (svgNode) {
+        const svg: SVGSVGElement = svgNode;
         const base = svg.viewBox.baseVal;
         const initialViewBox = { x: base.x, y: base.y, width: base.width, height: base.height };
         let zoom = 1;
         let viewBox = { ...initialViewBox };
         let drag: { pointerId: number; x: number; y: number } | null = null;
 
+        function updateUpp() {
+          const rect = host.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          // SVG uses preserveAspectRatio="xMidYMid meet", so the effective scale
+          // is the smaller of the two (content is padded, not cropped).
+          const scaleX = rect.width / viewBox.width;
+          const scaleY = rect.height / viewBox.height;
+          const scale = Math.min(scaleX, scaleY);
+          if (scale <= 0 || !Number.isFinite(scale)) return;
+          const upp = 1 / scale;
+          host.style.setProperty('--upp', String(upp));
+        }
+
         function apply() {
           svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
+          updateUpp();
         }
 
         function clampZoom(nextZoom: number): number {
@@ -280,6 +355,8 @@ function render(): void {
         }
 
         apply();
+        const resizeObserver = new ResizeObserver(() => updateUpp());
+        resizeObserver.observe(host);
 
         host.addEventListener(
           'wheel',
@@ -335,10 +412,12 @@ function render(): void {
     } else {
       exportCsv.style.display = '';
       const headers = ['Index', 'RECORD', 'Preview'];
-      const rows = payload!.rawRecords
-        .map((r) => [String(r.index), r.type === null ? '' : String(r.type), r.preview])
-        .sort((a, b) => Number(a[0]) - Number(b[0]));
-      panel.appendChild(renderTable(headers, rows, f));
+      const rows = payload!.rawRecords.map((r) => [
+        String(r.index),
+        r.type === null ? '' : String(r.type),
+        r.preview,
+      ]);
+      panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
         const blob = new Blob([csvFromTable(headers, rows)], { type: 'text/csv' });
         const a = document.createElement('a');
@@ -374,29 +453,159 @@ window.addEventListener('message', (event: MessageEvent) => {
 
 const style = document.createElement('style');
 style.textContent = `
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background:#1e1e1e; color:#ccc; height:100vh; overflow:hidden; }
-  #root { display:flex; flex-direction:column; height:100vh; }
-  .header { padding:12px 16px; border-bottom:1px solid #333; }
-  .header h1 { margin:0; font-size:16px; color:#fff; }
-  .meta { margin-top:6px; font-size:12px; color:#888; }
-  .toolbar { display:flex; gap:8px; padding:8px 16px; border-bottom:1px solid #333; align-items:center; }
-  .filter { flex:1; max-width:360px; padding:6px 10px; border-radius:4px; border:1px solid #444; background:#2d2d2d; color:#ddd; }
-  .btn { padding:6px 12px; border-radius:4px; border:1px solid #444; background:#333; color:#ddd; cursor:pointer; }
-  .btn:hover { background:#3a3a3a; }
-  .tabs { display:flex; gap:4px; padding:8px 16px 0; border-bottom:1px solid #333; flex-wrap:wrap; }
-  .tab { padding:6px 12px; border:1px solid transparent; border-bottom:none; background:transparent; color:#aaa; cursor:pointer; border-radius:4px 4px 0 0; }
-  .tab.active { background:#252526; color:#fff; border-color:#333; border-bottom-color:#252526; }
-  .panel { flex:1; overflow:auto; padding:12px 16px; background:#252526; }
-  .table-wrap { overflow:auto; max-height: calc(100vh - 200px); border:1px solid #333; border-radius:4px; }
-  table { border-collapse:collapse; width:100%; font-size:12px; }
-  th, td { border-bottom:1px solid #333; padding:6px 8px; text-align:left; vertical-align:top; }
-  th { position:sticky; top:0; background:#2a2d2e; color:#aaa; z-index:1; }
-  tr:hover td { background:#2a2d2e; }
-  .preview-wrap { display:flex; flex-direction:column; gap:8px; height: calc(100vh - 200px); }
-  .preview-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .preview-hint { margin-left:auto; font-size:12px; color:#888; }
-  .svg-host { flex:1; overflow:hidden; border:1px solid #333; border-radius:4px; background:#1a1a1a; cursor:grab; touch-action:none; }
-  .svg-host:active { cursor:grabbing; }
-  .svg-host svg { display:block; width:100%; height:100%; user-select:none; }
+  :root { --ciab-gap: 8px; }
+  body {
+    margin: 0;
+    font-family: var(--vscode-font-family, system-ui, -apple-system, Segoe UI, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    height: 100vh;
+    overflow: hidden;
+  }
+  #root { display: flex; flex-direction: column; height: 100vh; }
+  .header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+  }
+  .meta {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+  }
+  .toolbar {
+    display: flex;
+    gap: var(--ciab-gap);
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
+    align-items: center;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  }
+  .filter {
+    flex: 1;
+    max-width: 360px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    border: 1px solid var(--vscode-input-border, transparent);
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+  }
+  .filter::placeholder { color: var(--vscode-input-placeholderForeground); }
+  .filter:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+  }
+  .btn {
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--vscode-button-border, transparent);
+    background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .btn:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground)); }
+  .btn:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+  }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
+    flex-wrap: wrap;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  }
+  .tab {
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--vscode-foreground);
+    opacity: 0.75;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .tab:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
+  .tab.active {
+    color: var(--vscode-foreground);
+    opacity: 1;
+    border-bottom-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
+  }
+  .tab:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -2px;
+  }
+  .panel {
+    flex: 1;
+    overflow: auto;
+    padding: 12px 16px;
+    background: var(--vscode-editor-background);
+  }
+  .table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 180px);
+    border: 1px solid var(--vscode-panel-border, transparent);
+    border-radius: 2px;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td {
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
+    padding: 4px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    position: sticky;
+    top: 0;
+    background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
+    color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+    z-index: 1;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    user-select: none;
+  }
+  th.sortable { cursor: pointer; }
+  th.sortable:hover { background: var(--vscode-list-hoverBackground); }
+  th.sortable:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -2px; }
+  th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--vscode-foreground); }
+  tr:hover td { background: var(--vscode-list-hoverBackground); }
+  /* Monospace for identifier-like columns */
+  td.mono, th.mono { font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
+  .preview-wrap { display: flex; flex-direction: column; gap: var(--ciab-gap); height: calc(100vh - 180px); }
+  .preview-controls { display: flex; gap: var(--ciab-gap); align-items: center; flex-wrap: wrap; }
+  .preview-hint {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+  }
+  .svg-host {
+    flex: 1;
+    overflow: hidden;
+    border: 1px solid var(--vscode-panel-border, transparent);
+    border-radius: 2px;
+    background: var(--vscode-editor-background);
+    cursor: grab;
+    touch-action: none;
+    /* --upp is set from JS on every viewBox change; default keeps text visible on first paint. */
+    --upp: 1;
+  }
+  .svg-host:active { cursor: grabbing; }
+  .svg-host svg { display: block; width: 100%; height: 100%; user-select: none; }
 `;
 document.head.appendChild(style);

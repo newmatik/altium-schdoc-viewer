@@ -3,8 +3,10 @@
 .github/**
 src/**
 test/**
+scripts/**
 .gitignore
 CLAUDE.md
+SKILL.md
 .yarnrc
 esbuild.config.mjs
 vitest.config.ts

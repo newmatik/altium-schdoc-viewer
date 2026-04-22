@@ -5,9 +5,13 @@ import { parseSchDocBuffer } from '../src/parser/schematic';
 import { splitRecords } from '../src/parser/records';
 import { readFileHeaderStream } from '../src/parser/cfb';
 
+// Fixture is intentionally NOT committed (customer-proprietary). Contributors with
+// legitimate access can drop an Altium .SchDoc here locally; CI and public forks
+// skip these assertions.
 const fixture = path.join(__dirname, 'fixtures', 'AFE-Eval_Schematics_B.SchDoc');
+const hasFixture = fs.existsSync(fixture);
 
-describe('parser', () => {
+describe.skipIf(!hasFixture)('parser', () => {
   it('reads FileHeader stream from OLE SchDoc', () => {
     const buf = new Uint8Array(fs.readFileSync(fixture));
     const fh = readFileHeaderStream(buf);

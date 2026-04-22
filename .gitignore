@@ -2,3 +2,10 @@ node_modules
 dist
 *.vsix
 .DS_Store
+
+# Customer / third-party schematic files must never be committed.
+# Contributors with legitimate access may place real fixtures here locally for testing;
+# CI and all public forks run without them (tests skip when absent).
+test/fixtures/**/*.SchDoc
+test/fixtures/**/*.SchDot
+test/fixtures/**/*.PrjPcb

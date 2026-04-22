@@ -2,7 +2,7 @@
   "name": "altium-schdoc-viewer",
   "displayName": "Altium SchDoc Viewer",
   "description": "Open Altium .SchDoc/.SchDot without Altium: tables, heuristic netlist export, and a rough draft preview (WIP—not schematic-accurate).",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "newmatik",
   "license": "MIT",
   "homepage": "https://github.com/newmatik/altium-schdoc-viewer#readme",
@@ -32,7 +32,11 @@
     "onCustomEditor:altium.schdoc",
     "onCommand:altium.exportBom",
     "onCommand:altium.exportNetlist",
-    "onCommand:altium.revealRaw"
+    "onCommand:altium.exportJsonModel",
+    "onCommand:altium.revealRaw",
+    "onCommand:altium.mcp.setup",
+    "onCommand:altium.mcp.showSnippet",
+    "onCommand:altium.mcp.test"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -54,11 +58,27 @@
     "commands": [
       {
         "command": "altium.exportBom",
-        "title": "Altium: Export BOM as CSV"
+        "title": "Altium: Export BOM as CSV (grouped)"
       },
       {
         "command": "altium.exportNetlist",
         "title": "Altium: Export Netlist (Protel)"
+      },
+      {
+        "command": "altium.exportJsonModel",
+        "title": "Altium: Export JSON Model"
+      },
+      {
+        "command": "altium.mcp.setup",
+        "title": "Altium: Set up MCP server for AI chat (Cursor / Claude / Copilot)"
+      },
+      {
+        "command": "altium.mcp.showSnippet",
+        "title": "Altium: Show MCP server registration snippet"
+      },
+      {
+        "command": "altium.mcp.test",
+        "title": "Altium: Test MCP server (health check)"
       },
       {
         "command": "altium.revealRaw",
@@ -76,6 +96,10 @@
           "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
         },
         {
+          "command": "altium.exportJsonModel",
+          "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
+        },
+        {
           "command": "altium.revealRaw",
           "when": "resourceExtname == .SchDoc || resourceExtname == .SchDot"
         }
@@ -86,11 +110,17 @@
     "build": "node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "compile": "npm run build",
-    "pretest": "npm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "pretest": "npm run typecheck && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "vscode:prepublish": "npm run build",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "publish:dry": "scripts/publish.sh --dry-run",
+    "publish:all": "scripts/publish.sh",
+    "publish:vscode": "scripts/publish.sh --vscode-only",
+    "publish:ovsx": "scripts/publish.sh --ovsx-only",
+    "mcp": "node dist/mcp-server.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
