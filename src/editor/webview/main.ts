@@ -1,3 +1,7 @@
+import { csvFromTable, netConnectionRows } from './csv';
+import { sanitizeSvgTree } from './svgSanitize';
+import { panViewBox, zoomViewBoxAt, type ViewBox } from './viewport';
+
 interface InitPayload {
   fileName: string;
   filePath: string;
@@ -134,12 +138,28 @@ function renderTable(
   return wrap;
 }
 
-function csvFromTable(headers: string[], rows: string[][]): string {
-  const esc = (s: string) =>
-    /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  const lines = [headers.map(esc).join(',')];
-  for (const r of rows) lines.push(r.map(esc).join(','));
-  return lines.join('\n') + '\n';
+/**
+ * The preview pane's ResizeObserver. Each preview render creates a new host, so the previous
+ * observer is disconnected whenever the panel is rebuilt instead of leaking one per render.
+ */
+let previewResizeObserver: ResizeObserver | null = null;
+
+function disconnectPreviewObserver(): void {
+  previewResizeObserver?.disconnect();
+  previewResizeObserver = null;
+}
+
+/**
+ * Parse the preview SVG in an inert document (DOMParser runs no scripts and loads no resources),
+ * strip everything outside the builder's element/attribute allowlist, and only then import it
+ * into the webview. HTML parsing is used rather than strict XML so that a stray control character
+ * in a schematic string cannot blank the whole preview. Returns null if there is no `<svg>` root.
+ */
+function parsePreviewSvg(markup: string): SVGSVGElement | null {
+  const doc = new DOMParser().parseFromString(markup, 'text/html');
+  const svg = doc.body.firstElementChild;
+  if (!svg || !sanitizeSvgTree(svg)) return null;
+  return document.importNode(svg, true) as SVGSVGElement;
 }
 
 function tabButton(label: string, id: string, active: boolean): HTMLButtonElement {
@@ -153,6 +173,7 @@ function tabButton(label: string, id: string, active: boolean): HTMLButtonElemen
 
 function render(): void {
   if (!payload) return;
+  disconnectPreviewObserver();
   root.innerHTML = '';
 
   const header = el('header', 'header');
@@ -191,6 +212,7 @@ function render(): void {
   root.appendChild(panel);
 
   function renderPanel(): void {
+    disconnectPreviewObserver();
     panel.innerHTML = '';
     const f = filterInput.value;
     // Default sort on first visit of each tab: designator / net-name ascending.
@@ -242,11 +264,8 @@ function render(): void {
       ]);
       panel.appendChild(renderTable(headers, rows, f, activeTab, renderPanel));
       (exportCsv as HTMLButtonElement).onclick = () => {
-        const lines = ['Net,Pin,PinName'];
-        for (const n of payload!.nets) {
-          for (const p of n.pins) lines.push([n.name, `${p.designator}-${p.pin}`, p.pinName].join(','));
-        }
-        const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+        const csv = csvFromTable(['Net', 'Pin', 'PinName'], netConnectionRows(payload!.nets));
+        const blob = new Blob([csv], { type: 'text/csv' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `${payload!.fileName}-nets.csv`;
@@ -288,14 +307,15 @@ function render(): void {
       controls.appendChild(hint);
       wrap.appendChild(controls);
       const host = el('div', 'svg-host') as HTMLDivElement;
-      host.innerHTML = payload!.previewSvg;
-      const svgNode = host.querySelector('svg') as SVGSVGElement | null;
+      const svgNode = parsePreviewSvg(payload!.previewSvg);
+      if (!svgNode) host.appendChild(el('div', 'preview-hint', 'Preview unavailable for this sheet.'));
       if (svgNode) {
+        host.appendChild(svgNode);
         const svg: SVGSVGElement = svgNode;
         const base = svg.viewBox.baseVal;
         const initialViewBox = { x: base.x, y: base.y, width: base.width, height: base.height };
         let zoom = 1;
-        let viewBox = { ...initialViewBox };
+        let viewBox: ViewBox = { ...initialViewBox };
         let drag: { pointerId: number; x: number; y: number } | null = null;
 
         function updateUpp() {
@@ -320,39 +340,36 @@ function render(): void {
           return Math.min(48, Math.max(1, nextZoom));
         }
 
+        // Pointer positions are mapped through the meet-fitted SVG bounds, not the whole host:
+        // with letterboxing, the host's empty bands are not part of the viewBox.
         function zoomAt(clientX: number, clientY: number, factor: number): void {
           const rect = host.getBoundingClientRect();
-          if (!rect.width || !rect.height) return;
           const nextZoom = clampZoom(zoom * factor);
           if (nextZoom === zoom) return;
-          const px = (clientX - rect.left) / rect.width;
-          const py = (clientY - rect.top) / rect.height;
-          const worldX = viewBox.x + px * viewBox.width;
-          const worldY = viewBox.y + py * viewBox.height;
+          const next = zoomViewBoxAt(
+            rect,
+            viewBox,
+            clientX - rect.left,
+            clientY - rect.top,
+            initialViewBox.width / nextZoom,
+            initialViewBox.height / nextZoom
+          );
+          if (!next) return;
           zoom = nextZoom;
-          viewBox = {
-            x: worldX - px * (initialViewBox.width / zoom),
-            y: worldY - py * (initialViewBox.height / zoom),
-            width: initialViewBox.width / zoom,
-            height: initialViewBox.height / zoom,
-          };
+          viewBox = next;
           apply();
         }
 
         function panByPixels(dx: number, dy: number): void {
-          const rect = host.getBoundingClientRect();
-          if (!rect.width || !rect.height) return;
-          viewBox = {
-            ...viewBox,
-            x: viewBox.x + (dx * viewBox.width) / rect.width,
-            y: viewBox.y + (dy * viewBox.height) / rect.height,
-          };
+          const next = panViewBox(host.getBoundingClientRect(), viewBox, dx, dy);
+          if (!next) return;
+          viewBox = next;
           apply();
         }
 
         apply();
-        const resizeObserver = new ResizeObserver(() => updateUpp());
-        resizeObserver.observe(host);
+        previewResizeObserver = new ResizeObserver(() => updateUpp());
+        previewResizeObserver.observe(host);
 
         host.addEventListener(
           'wheel',

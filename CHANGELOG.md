@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Fixes
+
+- Preview: the SVG is now parsed in an inert document and reduced to the elements and
+  attributes the preview builder emits before it is inserted, so schematic-derived content
+  can never introduce scripts, event handlers, links or `foreignObject`.
+- Preview: zoom and pan map the pointer through the letterboxed (`xMidYMid meet`) SVG bounds,
+  so zooming stays anchored under the cursor when the pane and sheet aspect ratios differ.
+- Preview: the pane's ResizeObserver is disconnected when the panel is re-rendered instead of
+  leaking one observer per render.
+- Nets CSV export now quotes net and pin names containing commas, quotes or line breaks.
+
 ### Maintenance
 
 - Dev toolchain security updates: vitest 1.x -> 4.1 (fixes the critical Vitest UI server
