@@ -1,5 +1,3 @@
-import { buildSvgPreview } from './svgPreview';
-
 interface InitPayload {
   fileName: string;
   filePath: string;
@@ -27,8 +25,6 @@ interface InitPayload {
   rawRecords: { index: number; type: number | null; preview: string }[];
   previewSvg: string;
 }
-
-const vscode = acquireVsCodeApi();
 
 const root = document.getElementById('root')!;
 

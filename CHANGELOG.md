@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Maintenance
+
+- Dev toolchain security updates: vitest 1.x -> 4.1 (fixes the critical Vitest UI server
+  advisory GHSA-5xrq-8626-4rwp and the transitive vite advisories), esbuild 0.20 -> 0.28
+  (GHSA-67mh-4wv8-2f99), plus non-breaking `npm audit fix` lockfile updates.
+- Webview: removed an unused import and an unused `acquireVsCodeApi()` handle.
+
 ## 0.2.0
 
 ### Tables
