@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { csvFromTable, netConnectionRows } from '../src/editor/webview/csv';
-import { buildSvgPreview } from '../src/editor/webview/svgPreview';
+import { csvFromTable, netConnectionRows, neutralizeFormula } from '../src/editor/webview/csv';
+import { buildSvgPreview, PREVIEW_SVG_CSS } from '../src/editor/webview/svgPreview';
 import {
   ALLOWED_SVG_ATTRIBUTES,
   ALLOWED_SVG_ELEMENTS,
   sanitizeSvgTree,
+  SVG_NAMESPACE,
   type SanitizableElement,
 } from '../src/editor/webview/svgSanitize';
 import { hostToUser, meetFit, panViewBox, zoomViewBoxAt } from '../src/editor/webview/viewport';
@@ -21,6 +22,21 @@ describe('nets CSV export', () => {
     expect(csv).toBe('Net,Pin,PinName\n"SDA,SCL",U1-3,"IN ""A"""\nVCC,R1-1,"line\nbreak"\n');
   });
 
+  it('neutralizes cells a spreadsheet would evaluate as a formula', () => {
+    expect(neutralizeFormula('=HYPERLINK("http://x","y")')).toBe(`'=HYPERLINK("http://x","y")`);
+    expect(neutralizeFormula('@SUM(A1)')).toBe(`'@SUM(A1)`);
+    expect(neutralizeFormula('\tX')).toBe(`'\tX`);
+    expect(neutralizeFormula("+cmd|' /C calc'!A0")).toBe(`'+cmd|' /C calc'!A0`);
+    expect(neutralizeFormula('-1+SUM(A1)')).toBe(`'-1+SUM(A1)`);
+    expect(csvFromTable(['Net'], [['=1+1,2']])).toBe(`Net\n"'=1+1,2"\n`);
+  });
+
+  it('keeps power-net names and other ordinary values unchanged', () => {
+    for (const v of ['+3V3', '+5V', '-12V', '+VBAT', '-', 'GND', 'A-B', '10k', '']) {
+      expect(neutralizeFormula(v), v).toBe(v);
+    }
+  });
+
   it('emits one row per pin connection', () => {
     const rows = netConnectionRows([
       { name: 'GND', pins: [{ designator: 'C1', pin: '2', pinName: '' }, { designator: 'U1', pin: '8', pinName: 'GND' }] },
@@ -34,7 +50,12 @@ class FakeElement implements SanitizableElement {
   attrs: { name: string }[];
   kids: FakeElement[] = [];
   parent: FakeElement | null = null;
-  constructor(readonly localName: string, attrNames: string[] = [], children: FakeElement[] = []) {
+  constructor(
+    readonly localName: string,
+    attrNames: string[] = [],
+    children: FakeElement[] = [],
+    readonly namespaceURI: string | null = SVG_NAMESPACE
+  ) {
     this.attrs = attrNames.map((name) => ({ name }));
     for (const c of children) {
       c.parent = this;
@@ -110,12 +131,53 @@ describe('preview SVG sanitizer', () => {
     const attributes = new Set(
       Array.from(markup.matchAll(/\s([a-zA-Z][\w:-]*)="/g), (m) => m[1]!.toLowerCase())
     );
+    expect(elements.has('style')).toBe(false);
     expect([...elements].filter((e) => !ALLOWED_SVG_ELEMENTS.has(e))).toEqual([]);
     expect([...attributes].filter((a) => !ALLOWED_SVG_ATTRIBUTES.has(a))).toEqual([]);
   });
 
   it('rejects a root that is not <svg>', () => {
     expect(sanitizeSvgTree(new FakeElement('img', ['onerror']))).toBe(false);
+  });
+
+  it('rejects an <svg> root outside the SVG namespace', () => {
+    expect(sanitizeSvgTree(new FakeElement('svg', [], [], 'http://www.w3.org/1999/xhtml'))).toBe(false);
+  });
+
+  it('drops <style> and every element outside the SVG namespace', () => {
+    const XHTML = 'http://www.w3.org/1999/xhtml';
+    const rect = new FakeElement('rect', ['x']);
+    const root = new FakeElement('svg', [], [
+      new FakeElement('style'),
+      new FakeElement('rect', ['x'], [], XHTML),
+      new FakeElement('g', [], [new FakeElement('circle', [], [], null)]),
+      rect,
+    ]);
+    sanitizeSvgTree(root);
+    expect(root.kids.map((k) => k.localName)).toEqual(['g', 'rect']);
+    expect(root.kids[0]!.kids).toEqual([]);
+    expect(root.kids[1]).toBe(rect);
+  });
+
+  it('drops element children of <title> and <text>, which only ever hold text', () => {
+    // As parsed from text/html: <title> is an HTML integration point, so <style>/<img> inside it
+    // land in the XHTML namespace.
+    const XHTML = 'http://www.w3.org/1999/xhtml';
+    const title = new FakeElement('title', [], [new FakeElement('style', [], [], XHTML), new FakeElement('img', ['onerror'], [], XHTML)]);
+    const text = new FakeElement('text', ['x', 'y'], [new FakeElement('tspan')]);
+    const root = new FakeElement('svg', [], [new FakeElement('line', ['x1'], [title]), text]);
+    sanitizeSvgTree(root);
+    expect(title.kids).toEqual([]);
+    expect(text.kids).toEqual([]);
+    expect(root.kids.map((k) => k.localName)).toEqual(['line', 'text']);
+    expect(root.kids[0]!.kids).toEqual([title]);
+  });
+
+  it('styles every builder class from the webview CSS, not an embedded stylesheet', () => {
+    expect(PREVIEW_SVG_CSS).not.toContain('`');
+    for (const cls of ['preview-wire', 'preview-pin', 'preview-text', 'preview-netlabel', 'preview-halo']) {
+      expect(PREVIEW_SVG_CSS).toContain(`.${cls}`);
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 import { csvFromTable, netConnectionRows } from './csv';
+import { PREVIEW_SVG_CSS } from './svgPreview';
 import { sanitizeSvgTree } from './svgSanitize';
 import { panViewBox, zoomViewBoxAt, type ViewBox } from './viewport';
 
@@ -318,8 +319,10 @@ function render(): void {
         let viewBox: ViewBox = { ...initialViewBox };
         let drag: { pointerId: number; x: number; y: number } | null = null;
 
+        // Measure the <svg> box itself: .svg-host has a 1px border, so its rect is 2px larger and
+        // offset by 1px from the area the viewBox is fitted into.
         function updateUpp() {
-          const rect = host.getBoundingClientRect();
+          const rect = svg.getBoundingClientRect();
           if (!rect.width || !rect.height) return;
           // SVG uses preserveAspectRatio="xMidYMid meet", so the effective scale
           // is the smaller of the two (content is padded, not cropped).
@@ -343,7 +346,7 @@ function render(): void {
         // Pointer positions are mapped through the meet-fitted SVG bounds, not the whole host:
         // with letterboxing, the host's empty bands are not part of the viewBox.
         function zoomAt(clientX: number, clientY: number, factor: number): void {
-          const rect = host.getBoundingClientRect();
+          const rect = svg.getBoundingClientRect();
           const nextZoom = clampZoom(zoom * factor);
           if (nextZoom === zoom) return;
           const next = zoomViewBoxAt(
@@ -361,7 +364,7 @@ function render(): void {
         }
 
         function panByPixels(dx: number, dy: number): void {
-          const next = panViewBox(host.getBoundingClientRect(), viewBox, dx, dy);
+          const next = panViewBox(svg.getBoundingClientRect(), viewBox, dx, dy);
           if (!next) return;
           viewBox = next;
           apply();
@@ -407,11 +410,11 @@ function render(): void {
         host.addEventListener('dblclick', (ev: MouseEvent) => zoomAt(ev.clientX, ev.clientY, 1.6));
 
         zoomIn.onclick = () => {
-          const rect = host.getBoundingClientRect();
+          const rect = svg.getBoundingClientRect();
           zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.25);
         };
         zoomOut.onclick = () => {
-          const rect = host.getBoundingClientRect();
+          const rect = svg.getBoundingClientRect();
           zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / 1.25);
         };
         reset.onclick = () => {
@@ -619,6 +622,6 @@ style.textContent = `
     --upp: 1;
   }
   .svg-host:active { cursor: grabbing; }
-  .svg-host svg { display: block; width: 100%; height: 100%; user-select: none; }
-`;
+  .svg-host svg { display: block; width: 100%; height: 100%; user-select: none; shape-rendering: geometricPrecision; }
+${PREVIEW_SVG_CSS}`;
 document.head.appendChild(style);

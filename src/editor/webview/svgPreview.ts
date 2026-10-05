@@ -180,21 +180,13 @@ function svgRotationDeg(orientation: number): number {
   return 0;
 }
 
-export function buildSvgPreview(input: SvgPreviewInput): string {
-  const b = boundsOf(input);
-  const w = b.maxX - b.minX;
-  const h = b.maxY - b.minY;
-  const tx = (x: number) => x - b.minX;
-  const ty = (y: number) => b.maxY - y;
-
-  const parts: string[] = [];
-  parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">`
-  );
-  // Sizes that must stay constant in screen space use calc(n * var(--upp)) where
-  // --upp (user-units-per-pixel) is set on the host on every viewBox change.
-  parts.push(`<style>
-    svg { shape-rendering: geometricPrecision; }
+/**
+ * Stylesheet for the preview classes emitted by `buildSvgPreview`. It lives in the webview's own
+ * stylesheet rather than inside the SVG, so the sanitizer never has to allow a `<style>` element.
+ * Sizes that must stay constant in screen space use calc(n * var(--upp)) where --upp
+ * (user-units-per-pixel) is set on the host on every viewBox change.
+ */
+export const PREVIEW_SVG_CSS = `
     .preview-sheet { fill: var(--vscode-editor-background, #1e1e1e); stroke: var(--vscode-panel-border, #3c3c3c); stroke-width: calc(1 * var(--upp, 1)); }
     .preview-wire { stroke: var(--ciab-preview-wire, var(--vscode-charts-blue, #7fb0ff)); stroke-width: calc(1.4 * var(--upp, 1)); stroke-linecap: round; stroke-linejoin: round; fill: none; shape-rendering: crispEdges; }
     .preview-bus { stroke: var(--ciab-preview-bus, var(--vscode-charts-purple, #c586c0)); stroke-width: calc(2.5 * var(--upp, 1)); stroke-linecap: round; fill: none; shape-rendering: crispEdges; }
@@ -221,7 +213,19 @@ export function buildSvgPreview(input: SvgPreviewInput): string {
       opacity: 0.95;
       pointer-events: none;
     }
-  </style>`);
+`;
+
+export function buildSvgPreview(input: SvgPreviewInput): string {
+  const b = boundsOf(input);
+  const w = b.maxX - b.minX;
+  const h = b.maxY - b.minY;
+  const tx = (x: number) => x - b.minX;
+  const ty = (y: number) => b.maxY - y;
+
+  const parts: string[] = [];
+  parts.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">`
+  );
   // Background fills via class so it respects theme.
   parts.push(`<rect class="preview-sheet-bg" x="0" y="0" width="${w}" height="${h}" fill="var(--vscode-editor-background, #1e1e1e)"/>`);
   if (input.sheetSize) {

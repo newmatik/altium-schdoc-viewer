@@ -6,12 +6,18 @@
 
 - Preview: the SVG is now parsed in an inert document and reduced to the elements and
   attributes the preview builder emits before it is inserted, so schematic-derived content
-  can never introduce scripts, event handlers, links or `foreignObject`.
+  can never introduce scripts, event handlers, links or `foreignObject`. Elements must also be
+  in the SVG namespace, `<title>`/`<text>` keep text only, and `<style>` is no longer allowed:
+  the preview stylesheet moved into the webview's own CSS.
 - Preview: zoom and pan map the pointer through the letterboxed (`xMidYMid meet`) SVG bounds,
   so zooming stays anchored under the cursor when the pane and sheet aspect ratios differ.
+  Bounds are measured on the `<svg>` itself, not its bordered host.
 - Preview: the pane's ResizeObserver is disconnected when the panel is re-rendered instead of
   leaking one observer per render.
 - Nets CSV export now quotes net and pin names containing commas, quotes or line breaks.
+- Tab CSV exports neutralize cells a spreadsheet would run as a formula (leading `=`, `@`,
+  tab or CR, or `+`/`-` followed by formula syntax) with a leading apostrophe. Power-net
+  names such as `+3V3` and `-12V` are exported unchanged.
 
 ### Maintenance
 
