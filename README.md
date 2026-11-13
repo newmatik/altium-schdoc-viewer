@@ -75,7 +75,7 @@ Open this folder as the workspace root, then **Run Extension** (F5). The launch 
 
 ```bash
 npm ci
-npm run build   # dist/extension.js and dist/webview.js
+npm run build   # dist/extension.js, dist/webview.js and dist/mcp-server.js
 npm test
 npm run watch   # optional
 ```

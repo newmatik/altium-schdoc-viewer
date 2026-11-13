@@ -22,8 +22,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install
         run: npm ci
-      - name: Typecheck
-        run: npm run typecheck
+      # `npm test` runs the typecheck and the build first (the `pretest` script).
       - name: Test
         run: npm test
       - name: Package

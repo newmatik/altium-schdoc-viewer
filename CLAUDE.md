@@ -97,13 +97,15 @@ has a minimal devDependency list.
 
 ## Build system shape
 
-`esbuild.config.mjs` produces **two independent bundles** from one `npm run build`:
+`esbuild.config.mjs` produces **three independent bundles** from one `npm run build`:
 
 1. **Extension host** (`src/extension.ts` → `dist/extension.js`): Node 18 target, CJS, `vscode`
    marked external. Runs in the VS Code extension host process with full Node APIs.
 2. **Webview** (`src/editor/webview/main.ts` → `dist/webview.js`): browser target, ES2020, IIFE. Runs
    inside the custom-editor iframe with a strict CSP (nonce-only scripts, no `eval`, data/https images
    allowed) defined in `src/editor/html.ts`.
+3. **MCP server** (`src/mcp/server.ts` → `dist/mcp-server.js`): Node 18 target, CJS, with a
+   `#!/usr/bin/env node` banner. A standalone stdio CLI; it does not import `vscode`.
 
 `tsconfig.json` intentionally excludes `test/`; tests are typechecked by `tsconfig.test.json` and run
 by Vitest directly against TypeScript sources (no separate compile step). The two sides must not
@@ -162,7 +164,9 @@ power-rail name or a net with ≥ 4 pins, which together catch most regressions.
 
 ## Fixture
 
-`test/fixtures/AFE-Eval_Schematics_B.SchDoc` is a real 822 kB binary SchDoc. The parser test asserts
+`test/fixtures/AFE-Eval_Schematics_B.SchDoc` is a real 822 kB binary SchDoc. It is **not tracked**
+(gitignored, see above): the tests that need it skip when it is absent, so CI and fresh clones run
+without it. With the file in place locally, the parser test asserts
 **exactly** 3554 records, 67 components, 359 pins, and that a component designated `U1` exists with
 a `LibReference` containing `TMA`. If a refactor changes those numbers, something is wrong — do not
 update the expectations without understanding *why* the count moved.
