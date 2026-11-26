@@ -23,6 +23,14 @@ Source code: [github.com/newmatik/altium-schdoc-viewer](https://github.com/newma
 
 The extension bundles a **Model Context Protocol** server that lets **Claude Code, Cursor, Claude Desktop, Codex CLI, and VS Code GitHub Copilot agent mode** query your `.SchDoc` files in a structured way — list components, trace nets, pull the BOM, inspect parameters, all from the chat panel.
 
+### Moving an existing workspace to EngineHall
+
+EngineHall includes the schematic viewer and its local MCP server. Open the existing sheet in EngineHall. Run **EngineHall: Set up MCP server for AI chat** for the supported hosts. For Codex CLI, use **EngineHall: Show MCP server registration snippet** and register `enginehall-extension` with the displayed stdio command and installed server path.
+
+Run **EngineHall: Test MCP server**, then open your host and select the new registration. Call `schdoc_summary`, `schdoc_nets` and `schdoc_title` on the same file with both registrations. Compare the component counts, net names and title fields before removing the standalone registration from that workspace.
+
+Install the maintained editor from its public extension listing. [EngineHall for VS Code](https://marketplace.visualstudio.com/items?itemName=newmatik.enginehall)
+
 ### One-click setup
 
 Open the folder that contains your schematics in VS Code / Cursor, then run:
