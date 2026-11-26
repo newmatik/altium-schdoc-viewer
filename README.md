@@ -25,9 +25,11 @@ The extension bundles a **Model Context Protocol** server that lets **Claude Cod
 
 ### Moving an existing workspace to EngineHall
 
-EngineHall includes the schematic viewer and its local MCP server. Open a copy of the existing schematic in the same project folder. In the EngineHall editor extension, run **EngineHall: Set up MCP server for AI chat** and **EngineHall: Test MCP server**. In your host, select the new server and run `schdoc_summary` on the same sheet. Compare component counts, nets and the title block before removing the old standalone registration from that workspace. The engine’s separate project-wide server has different tools.
+EngineHall includes the schematic viewer and its local MCP server. Open the existing sheet in EngineHall. Run **EngineHall: Set up MCP server for AI chat** for the supported hosts. For Codex CLI, use **EngineHall: Show MCP server registration snippet** and register `enginehall-extension` with the displayed stdio command and installed server path.
 
-The maintained editor guide describes the installation, local file handling and tool catalog. [EngineHall editor guide](https://github.com/newmatik/pcbastudio/blob/main/extension/README.md#mcp-server)
+Run **EngineHall: Test MCP server**, then open your host and select the new registration. Call `schdoc_summary`, `schdoc_nets` and `schdoc_title` on the same file with both registrations. Compare the component counts, net names and title fields before removing the standalone registration from that workspace.
+
+Install the maintained editor from its public extension listing. [EngineHall for VS Code](https://marketplace.visualstudio.com/items?itemName=newmatik.enginehall)
 
 ### One-click setup
 
